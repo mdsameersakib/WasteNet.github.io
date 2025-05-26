@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WasteNet: AI Waste Classification System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- Application Structure Plan: Single-page vertical scroll. Sticky top navigation for major sections.
+         Key sections: Introduction, Team/Supervisor, Methodology, Implementation, Results (tabbed for EffNet, ResNet, Ensemble, Comparison), Challenges (expandable cards), Conclusion.
+         This structure allows a clear narrative flow, from problem to solution and learnings, while enabling focused exploration of results and challenges.
+         The tabbed results section is chosen for direct comparison and to avoid an overly long page. Expandable cards for challenges keep the main view clean. -->
+    <!-- Visualization & Content Choices:
+         - Introduction: Text block. Goal: Inform.
+         - Team/Supervisor: Structured text. Goal: Acknowledge.
+         - Methodology: Bulleted/paragraph text. Goal: Inform. Key elements: Dataset (name, size, classes, stratified split), Augmentation, Models (EffNetV2B0, ResNet50, fine-tuning), Metrics.
+         - Implementation: Text block. Goal: Inform. Key elements: Software/Hardware, Parameters.
+         - Results:
+            - Training History (EffNet, ResNet): Line charts (Chart.js). Goal: Show Change. Interaction: Tooltips.
+            - Metrics Tables (EffNet, ResNet, Ensemble, Comparison): HTML tables. Goal: Compare/Inform.
+            - Classification Reports (EffNet, ResNet, Ensemble): Preformatted text. Goal: Detail/Compare.
+            - Confusion Matrices (EffNet, ResNet, Ensemble): Embedded images (now local). Goal: Visualize/Compare.
+            - Sample Predictions (EffNet, ResNet): Embedded images (now local). Goal: Illustrate.
+         - Challenges: Cards with expandable details (JS toggle). Goal: Detail/Inform.
+         - Conclusion: Text block. Goal: Summarize.
+         - NO SVG/Mermaid. Visual structure via HTML/Tailwind. Icons via Unicode. Charts via Chart.js. -->
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .details-content { max-height: 0; overflow: hidden; transition: max-height 0.5s ease-out, padding 0.5s ease-out; padding-top: 0; padding-bottom: 0; }
+        .details-content.open { max-height: 1500px; padding-top: 1rem; padding-bottom: 1rem; }
+        .nav-link.active { font-weight: 600; color: #0369a1; /* sky-700 */ border-bottom-color: #0369a1; }
+        .tab-button.active { background-color: #0ea5e9; /* sky-500 */ color: white; }
+        .tab-button { background-color: #e2e8f0; /* slate-200 */ color: #334155; /* slate-700 */ }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .chart-container { position: relative; width: 100%; max-width: 600px; margin-left: auto; margin-right: auto; height: 300px; max-height: 350px; }
+        @media (min-width: 768px) { .chart-container { height: 350px; max-height: 400px;} }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        .image-placeholder { display: flex; align-items: center; justify-content: center; background-color: #e2e8f0; border: 1px dashed #cbd5e1; color: #64748b; text-align: center; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-50 text-slate-700 antialiased">
+
+    <nav class="bg-white shadow-md sticky top-0 z-50">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <span class="font-bold text-xl text-sky-700">WasteNet</span>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#intro" class="nav-link text-slate-600 hover:text-sky-700 px-3 py-2 rounded-md text-sm font-medium border-b-2 border-transparent">Introduction</a>
+                        <a href="#team" class="nav-link text-slate-600 hover:text-sky-700 px-3 py-2 rounded-md text-sm font-medium border-b-2 border-transparent">Team & Supervisor</a>
+                        <a href="#methodology" class="nav-link text-slate-600 hover:text-sky-700 px-3 py-2 rounded-md text-sm font-medium border-b-2 border-transparent">Methodology</a>
+                        <a href="#implementation" class="nav-link text-slate-600 hover:text-sky-700 px-3 py-2 rounded-md text-sm font-medium border-b-2 border-transparent">Implementation</a>
+                        <a href="#results" class="nav-link text-slate-600 hover:text-sky-700 px-3 py-2 rounded-md text-sm font-medium border-b-2 border-transparent">Results</a>
+                        <a href="#challenges" class="nav-link text-slate-600 hover:text-sky-700 px-3 py-2 rounded-md text-sm font-medium border-b-2 border-transparent">Challenges</a>
+                        <a href="#conclusion" class="nav-link text-slate-600 hover:text-sky-700 px-3 py-2 rounded-md text-sm font-medium border-b-2 border-transparent">Conclusion</a>
+                    </div>
+                </div>
+                <div class="md:hidden">
+                    <button id="mobile-menu-button" class="text-slate-500 hover:text-sky-700 focus:outline-none">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="md:hidden hidden" id="mobile-menu">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="#intro" class="nav-link text-slate-600 hover:text-sky-700 block px-3 py-2 rounded-md text-base font-medium border-b-2 border-transparent">Introduction</a>
+                <a href="#team" class="nav-link text-slate-600 hover:text-sky-700 block px-3 py-2 rounded-md text-base font-medium border-b-2 border-transparent">Team & Supervisor</a>
+                <a href="#methodology" class="nav-link text-slate-600 hover:text-sky-700 block px-3 py-2 rounded-md text-base font-medium border-b-2 border-transparent">Methodology</a>
+                <a href="#implementation" class="nav-link text-slate-600 hover:text-sky-700 block px-3 py-2 rounded-md text-base font-medium border-b-2 border-transparent">Implementation</a>
+                <a href="#results" class="nav-link text-slate-600 hover:text-sky-700 block px-3 py-2 rounded-md text-base font-medium border-b-2 border-transparent">Results</a>
+                <a href="#challenges" class="nav-link text-slate-600 hover:text-sky-700 block px-3 py-2 rounded-md text-base font-medium border-b-2 border-transparent">Challenges</a>
+                <a href="#conclusion" class="nav-link text-slate-600 hover:text-sky-700 block px-3 py-2 rounded-md text-base font-medium border-b-2 border-transparent">Conclusion</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <header class="text-center mb-16 pt-8">
+            <h1 class="text-5xl font-extrabold text-slate-900 mb-3">WasteNet: An AI-Powered Waste Classification System</h1>
+            <p class="text-2xl text-sky-700 font-semibold">CSE463: Computer Vision - Project Presentation</p>
+        </header>
+
+        <section id="intro" class="mb-16 p-6 bg-white rounded-xl shadow-xl">
+            <h2 class="text-3xl font-semibold text-slate-800 mb-4 border-b-2 border-sky-600 pb-2">Introduction</h2>
+            <p class="text-lg leading-relaxed mb-4">
+                Effective waste management and recycling are critical for environmental sustainability. Manual sorting of waste is labor-intensive, costly, and often inefficient. This project, "WasteNet," explores the application of deep learning for automated classification of recyclable and household waste items from images. 
+            </p>
+            <p class="text-lg leading-relaxed">
+                Our objective is to develop and compare the performance of two prominent Convolutional Neural Network (CNN) architectures, EfficientNetV2B0 and ResNet50, for this task. By leveraging transfer learning and fine-tuning techniques on a diverse 30-class waste dataset, we aim to identify a robust model capable of contributing to more efficient automated waste sorting systems. This presentation details our methodology, implementation journey, key results, and the challenges overcome.
+            </p>
+        </section>
+
+        <section id="team" class="mb-16 p-6 bg-white rounded-xl shadow-xl">
+            <h2 class="text-3xl font-semibold text-slate-800 mb-6 border-b-2 border-sky-600 pb-2">Project Team & Supervisor</h2>
+            <div class="grid md:grid-cols-2 gap-8">
+                <div>
+                    <h3 class="text-2xl font-semibold text-sky-700 mb-3">Student Researchers</h3>
+                    <div class="space-y-2 text-lg">
+                        <p><strong class="text-slate-600">Md. Sameer Sakib</strong><br>ID: 24241344, CSE, BRAC University</p>
+                        <p><strong class="text-slate-600">Abrar Ahsan Purno</strong><br>ID: 24141162, CSE, BRAC University</p>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-2xl font-semibold text-sky-700 mb-3">Project Supervisor</h3>
+                    <p class="text-lg font-medium text-slate-600">Dr. Md. Ashraful Alam</p>
+                    <p class="text-md text-slate-500">Associate Professor, CSE Department, BRAC University</p>
+                    <p class="text-md text-slate-500">Director, CVIS Research Lab (Computer Vision and Intelligent Systems)</p>
+                    <p class="mt-2 text-sm text-slate-600 leading-relaxed">
+                        Dr. Alam received his Doctor of Engineering from Chungbuk National University, South Korea. He has published over 80 papers and his research interests include computer vision, machine learning, 3-D vision, medical data analytics, and AR/VR. He is an active reviewer and editorial board member for international journals.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <section id="methodology" class="mb-16 p-6 bg-white rounded-xl shadow-xl">
+            <h2 class="text-3xl font-semibold text-slate-800 mb-6 border-b-2 border-sky-600 pb-2">Methodology</h2>
+            <div class="text-lg leading-relaxed space-y-4">
+                <div>
+                    <h4 class="text-xl font-semibold text-sky-700 mb-2">1. Dataset</h4>
+                    <p><strong class="text-slate-600">Source:</strong> `alistairking/recyclable-and-household-waste-classification` (Kaggle).</p>
+                    <p><strong class="text-slate-600">Content:</strong> 15,000 images across 30 distinct classes of recyclable and household waste.</p>
+                    <p><strong class="text-slate-600">Data Split:</strong> A stratified split was performed to ensure representative datasets:
+                        <ul class="list-disc list-inside ml-4">
+                            <li>Training Set: 12,000 images (80%)</li>
+                            <li>Validation Set: 3,000 images (20%), with 100 samples per class.</li>
+                        </ul>
+                    </p>
+                </div>
+                <div>
+                    <h4 class="text-xl font-semibold text-sky-700 mb-2">2. Data Preprocessing & Augmentation</h4>
+                     <p><strong class="text-slate-600">Common Steps:</strong> Images resized to 224x224 pixels. Labels one-hot encoded.</p>
+                    <p><strong class="text-slate-600">Model-Specific Preprocessing:</strong>
+                        <ul class="list-disc list-inside ml-4">
+                            <li>EfficientNetV2B0: Pixel values normalized to [0,1].</li>
+                            <li>ResNet50: `tf.keras.applications.resnet50.preprocess_input` applied.</li>
+                        </ul>
+                    </p>
+                    <p><strong class="text-slate-600">Augmentation (Training Set Only):</strong> Random Horizontal Flips, Random Rotations (factor 0.1), Random Zooms (factor 0.1) to increase dataset diversity and mitigate overfitting.</p>
+                </div>
+                <div>
+                    <h4 class="text-xl font-semibold text-sky-700 mb-2">3. Model Architectures & Training</h4>
+                    <p><strong class="text-slate-600">Models:</strong> EfficientNetV2B0 and ResNet50, pre-trained on ImageNet.</p>
+                    <p><strong class="text-slate-600">Strategy:</strong> Transfer learning with fine-tuning. The entire base model was unfrozen and trained end-to-end with a low learning rate.</p>
+                    <p><strong class="text-slate-600">Custom Head:</strong> For both models, a classification head consisting of GlobalAveragePooling2D, BatchNormalization, Dropout (rate 0.3), and a Dense output layer (30 units, softmax activation) was added.</p>
+                </div>
+                 <div>
+                    <h4 class="text-xl font-semibold text-sky-700 mb-2">4. Evaluation Metrics</h4>
+                    <p>Performance was assessed using: Accuracy, Precision (Macro), Recall (Macro), F1-Score (Macro & Weighted), and Confusion Matrices. Per-class metrics were analyzed via Classification Reports.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="implementation" class="mb-16 p-6 bg-white rounded-xl shadow-xl">
+            <h2 class="text-3xl font-semibold text-slate-800 mb-6 border-b-2 border-sky-600 pb-2">Implementation Details</h2>
+            <div class="text-lg leading-relaxed space-y-3">
+                <p><strong class="text-slate-600">Framework:</strong> TensorFlow with Keras API.</p>
+                <p><strong class="text-slate-600">Programming Language:</strong> Python.</p>
+                <p><strong class="text-slate-600">Hardware:</strong> Primarily NVIDIA Tesla P100 GPU (after initial troubleshooting with T4x2).</p>
+                <p><strong class="text-slate-600">Key Training Parameters (Fine-tuning):</strong>
+                    <ul class="list-disc list-inside ml-4">
+                        <li>Image Size: 224x224 pixels.</li>
+                        <li>Batch Size: 32.</li>
+                        <li>Optimizer: Adam (epsilon=1e-7, clipnorm=1.0).</li>
+                        <li>Learning Rate: 1e-5 for fine-tuning both models.</li>
+                        <li>Loss Function: Categorical Crossentropy.</li>
+                        <li>Epochs: 10 epochs for the runs presented in direct comparison (with a note that EfficientNetV2B0 achieved higher scores in a previous 50-epoch run). EarlyStopping monitored `val_loss` with patience=10.</li>
+                        <li>Precision: `float32` for stable training.</li>
+                    </ul>
+                </p>
+                <p>The project involved an iterative process of model selection, data pipeline refinement, hyperparameter tuning, and systematic troubleshooting to address challenges like NaN losses and data splitting issues.</p>
+            </div>
+        </section>
+
+        <section id="results" class="mb-16 p-6 bg-white rounded-xl shadow-xl">
+            <h2 class="text-3xl font-semibold text-slate-800 mb-6 border-b-2 border-sky-600 pb-2">Results</h2>
+            <p class="text-lg leading-relaxed mb-6">This section presents the performance of EfficientNetV2B0, ResNet50, and their ensemble. The individual models were fine-tuned for 10 epochs for this comparative run. Note: EfficientNetV2B0 achieved higher metrics (approx. 84% macro F1, 89.9% accuracy) in a previous 50-epoch fine-tuning experiment, indicating its strong potential with sufficient training.</p>
+            
+            <div class="mb-6">
+                <div class="flex flex-wrap border-b border-slate-300">
+                    <button class="tab-button py-2 px-4 font-medium focus:outline-none active" data-tab="effnet">EfficientNetV2B0</button>
+                    <button class="tab-button py-2 px-4 font-medium focus:outline-none" data-tab="resnet">ResNet50</button>
+                    <button class="tab-button py-2 px-4 font-medium focus:outline-none" data-tab="ensemble">Ensemble</button>
+                    <button class="tab-button py-2 px-4 font-medium focus:outline-none" data-tab="comparison">Comparison</button>
+                </div>
+            </div>
+
+            <div id="effnet-content" class="tab-content active">
+                <h3 class="text-2xl font-semibold text-sky-700 mb-4">EfficientNetV2B0 (10 Epochs Fine-tuning)</h3>
+                <p class="mb-4 text-slate-600">Training Time: Approx. 16.21 minutes. Best epoch (based on val_loss): 10.</p>
+                <div class="grid md:grid-cols-2 gap-6 mb-6">
+                    <div class="chart-container bg-slate-50 p-4 rounded-lg shadow"><canvas id="effnetAccChart"></canvas></div>
+                    <div class="chart-container bg-slate-50 p-4 rounded-lg shadow"><canvas id="effnetLossChart"></canvas></div>
+                </div>
+                <h4 class="text-xl font-semibold text-slate-700 mt-6 mb-2">Evaluation Metrics:</h4>
+                <pre class="bg-slate-100 p-4 rounded-md text-sm overflow-x-auto">
+loss: 1.3041
+compile_metrics (accuracy): 0.6110 
+                </pre>
+                <h4 class="text-xl font-semibold text-slate-700 mt-6 mb-2">Classification Report:</h4>
+                <pre class="bg-slate-100 p-4 rounded-md text-sm overflow-x-auto">
+                            precision    recall  f1-score   support
+
+              aerosol_cans       0.60      0.69      0.64       100
+        aluminum_food_cans       0.31      0.31      0.31       100
+        aluminum_soda_cans       0.63      0.56      0.59       100
+           cardboard_boxes       0.50      0.60      0.55       100
+       cardboard_packaging       0.54      0.43      0.48       100
+                  clothing       0.58      0.68      0.63       100
+            coffee_grounds       0.61      0.95      0.74       100
+disposable_plastic_cutlery       0.91      0.73      0.81       100
+                 eggshells       0.76      0.74      0.75       100
+                food_waste       0.86      0.76      0.81       100
+    glass_beverage_bottles       0.70      0.68      0.69       100
+ glass_cosmetic_containers       0.70      0.59      0.64       100
+           glass_food_jars       0.58      0.67      0.62       100
+                 magazines       0.65      0.77      0.71       100
+                 newspaper       0.39      0.75      0.51       100
+              office_paper       0.44      0.40      0.42       100
+                paper_cups       0.61      0.40      0.48       100
+          plastic_cup_lids       0.54      0.54      0.54       100
+ plastic_detergent_bottles       0.82      0.76      0.79       100
+   plastic_food_containers       0.66      0.64      0.65       100
+     plastic_shopping_bags       0.72      0.55      0.63       100
+      plastic_soda_bottles       0.51      0.58      0.54       100
+            plastic_straws       0.73      0.69      0.71       100
+        plastic_trash_bags       0.80      0.61      0.69       100
+     plastic_water_bottles       0.52      0.64      0.57       100
+                     shoes       0.81      0.75      0.78       100
+           steel_food_cans       0.35      0.43      0.39       100
+            styrofoam_cups       0.71      0.55      0.62       100
+ styrofoam_food_containers       0.74      0.64      0.68       100
+                  tea_bags       0.67      0.24      0.35       100
+
+                  accuracy                           0.61      3000
+                 macro avg       0.63      0.61      0.61      3000
+              weighted avg       0.63      0.61      0.61      3000
+                </pre>
+                <h4 class="text-xl font-semibold text-slate-700 mt-6 mb-2">Confusion Matrix:</h4>
+                <div class="flex justify-center">
+                    <img src="assets/images/effnet_confusion_matrix.png" alt="EfficientNetV2B0 Confusion Matrix" class="rounded-lg shadow-md max-w-full md:max-w-2xl w-full h-auto" onerror="this.parentElement.innerHTML = '<div class=\'image-placeholder w-full h-64 md:h-96\'>EfficientNetV2B0 Confusion Matrix Image Not Found (assets/images/effnet_confusion_matrix.png)</div>';">
+                </div>
+                <h4 class="text-xl font-semibold text-slate-700 mt-6 mb-2">Sample Predictions:</h4>
+                <div class="flex justify-center">
+                    <img src="assets/images/effnet_sample_predictions.png" alt="EfficientNetV2B0 Sample Predictions" class="rounded-lg shadow-md max-w-full md:max-w-3xl w-full h-auto" onerror="this.parentElement.innerHTML = '<div class=\'image-placeholder w-full h-64 md:h-96\'>EfficientNetV2B0 Sample Predictions Image Not Found (assets/images/effnet_sample_predictions.png)</div>';">
+                </div>
+            </div>
+
+            <div id="resnet-content" class="tab-content">
+                <h3 class="text-2xl font-semibold text-sky-700 mb-4">ResNet50 (10 Epochs Fine-tuning)</h3>
+                <p class="mb-4 text-slate-600">Training Time: Approx. 21.30 minutes. Best epoch (based on val_loss): 8.</p>
+                <div class="grid md:grid-cols-2 gap-6 mb-6">
+                    <div class="chart-container bg-slate-50 p-4 rounded-lg shadow"><canvas id="resnetAccChart"></canvas></div>
+                    <div class="chart-container bg-slate-50 p-4 rounded-lg shadow"><canvas id="resnetLossChart"></canvas></div>
+                </div>
+                <h4 class="text-xl font-semibold text-slate-700 mt-6 mb-2">Evaluation Metrics:</h4>
+                <pre class="bg-slate-100 p-4 rounded-md text-sm overflow-x-auto">
+loss: 0.5607
+compile_metrics (accuracy): 0.8360
+                </pre>
+                <h4 class="text-xl font-semibold text-slate-700 mt-6 mb-2">Classification Report:</h4>
+                <pre class="bg-slate-100 p-4 rounded-md text-sm overflow-x-auto">
+                            precision    recall  f1-score   support
+
+              aerosol_cans       0.90      0.91      0.91       100
+        aluminum_food_cans       0.60      0.51      0.55       100
+        aluminum_soda_cans       0.87      0.91      0.89       100
+           cardboard_boxes       0.58      0.58      0.58       100
+       cardboard_packaging       0.59      0.61      0.60       100
+                  clothing       0.79      0.83      0.81       100
+            coffee_grounds       0.92      0.97      0.94       100
+disposable_plastic_cutlery       0.94      0.94      0.94       100
+                 eggshells       0.92      0.92      0.92       100
+                food_waste       0.95      0.92      0.93       100
+    glass_beverage_bottles       0.87      0.92      0.89       100
+ glass_cosmetic_containers       0.96      0.95      0.95       100
+           glass_food_jars       0.93      0.88      0.90       100
+                 magazines       0.82      0.91      0.86       100
+                 newspaper       0.78      0.74      0.76       100
+              office_paper       0.77      0.76      0.76       100
+                paper_cups       0.70      0.82      0.76       100
+          plastic_cup_lids       0.81      0.78      0.80       100
+ plastic_detergent_bottles       0.96      0.96      0.96       100
+   plastic_food_containers       0.92      0.82      0.87       100
+     plastic_shopping_bags       0.89      0.90      0.90       100
+      plastic_soda_bottles       0.83      0.79      0.81       100
+            plastic_straws       0.87      0.87      0.87       100
+        plastic_trash_bags       0.94      0.89      0.91       100
+     plastic_water_bottles       0.83      0.80      0.82       100
+                     shoes       0.87      0.96      0.91       100
+           steel_food_cans       0.60      0.62      0.61       100
+            styrofoam_cups       0.90      0.86      0.88       100
+ styrofoam_food_containers       0.92      0.89      0.90       100
+                  tea_bags       0.89      0.86      0.87       100
+
+                  accuracy                           0.84      3000
+                 macro avg       0.84      0.84      0.84      3000
+              weighted avg       0.84      0.84      0.84      3000
+                </pre>
+                <h4 class="text-xl font-semibold text-slate-700 mt-6 mb-2">Confusion Matrix:</h4>
+                <div class="flex justify-center">
+                     <img src="assets/images/resnet_confusion_matrix.jpg" alt="ResNet50 Confusion Matrix" class="mx-auto rounded-lg shadow-md max-w-full md:max-w-2xl w-full h-auto" onerror="this.parentElement.innerHTML = '<div class=\'image-placeholder w-full h-64 md:h-96\'>ResNet50 Confusion Matrix Image Not Found (assets/images/resnet_confusion_matrix.jpg)</div>';">
+                </div>
+                <h4 class="text-xl font-semibold text-slate-700 mt-6 mb-2">Sample Predictions:</h4>
+                 <div class="flex justify-center">
+                    <img src="assets/images/resnet_sample_predictions.png" alt="ResNet50 Sample Predictions" class="mx-auto rounded-lg shadow-md max-w-full md:max-w-3xl w-full h-auto" onerror="this.parentElement.innerHTML = '<div class=\'image-placeholder w-full h-64 md:h-96\'>ResNet50 Sample Predictions Image Not Found (assets/images/resnet_sample_predictions.png)</div>';">
+                </div>
+            </div>
+
+            <div id="ensemble-content" class="tab-content">
+                <h3 class="text-2xl font-semibold text-sky-700 mb-4">Ensemble (EffNetV2B0 + ResNet50)</h3>
+                <p class="mb-4 text-slate-600">Ensemble created by averaging the softmax probabilities of the 10-epoch fine-tuned EfficientNetV2B0 and ResNet50 models.</p>
+                <h4 class="text-xl font-semibold text-slate-700 mt-6 mb-2">Evaluation Metrics:</h4>
+                 <pre class="bg-slate-100 p-4 rounded-md text-sm overflow-x-auto">
+Ensemble Accuracy (calculated from predictions): 0.8303
+                </pre>
+                <h4 class="text-xl font-semibold text-slate-700 mt-6 mb-2">Classification Report:</h4>
+                <pre class="bg-slate-100 p-4 rounded-md text-sm overflow-x-auto">
+                            precision    recall  f1-score   support
+
+              aerosol_cans       0.86      0.89      0.87       100
+        aluminum_food_cans       0.61      0.54      0.57       100
+        aluminum_soda_cans       0.85      0.91      0.88       100
+           cardboard_boxes       0.61      0.65      0.63       100
+       cardboard_packaging       0.66      0.59      0.62       100
+                  clothing       0.75      0.83      0.79       100
+            coffee_grounds       0.87      0.99      0.93       100
+disposable_plastic_cutlery       0.94      0.94      0.94       100
+                 eggshells       0.93      0.92      0.92       100
+                food_waste       0.93      0.91      0.92       100
+    glass_beverage_bottles       0.84      0.94      0.89       100
+ glass_cosmetic_containers       0.99      0.95      0.97       100
+           glass_food_jars       0.92      0.87      0.89       100
+                 magazines       0.84      0.90      0.87       100
+                 newspaper       0.69      0.74      0.71       100
+              office_paper       0.75      0.77      0.76       100
+                paper_cups       0.73      0.80      0.76       100
+          plastic_cup_lids       0.78      0.80      0.79       100
+ plastic_detergent_bottles       0.96      0.93      0.94       100
+   plastic_food_containers       0.89      0.79      0.84       100
+     plastic_shopping_bags       0.91      0.88      0.89       100
+      plastic_soda_bottles       0.83      0.77      0.80       100
+            plastic_straws       0.90      0.86      0.88       100
+        plastic_trash_bags       0.94      0.87      0.90       100
+     plastic_water_bottles       0.78      0.80      0.79       100
+                     shoes       0.88      0.95      0.91       100
+           steel_food_cans       0.60      0.59      0.60       100
+            styrofoam_cups       0.89      0.84      0.87       100
+ styrofoam_food_containers       0.92      0.88      0.90       100
+                  tea_bags       0.93      0.81      0.87       100
+
+                  accuracy                           0.83      3000
+                 macro avg       0.83      0.83      0.83      3000
+              weighted avg       0.83      0.83      0.83      3000
+                </pre>
+                <h4 class="text-xl font-semibold text-slate-700 mt-6 mb-2">Confusion Matrix:</h4>
+                <div class="flex justify-center">
+                    <img src="assets/images/ensemble_confusion_matrix.png" alt="Ensemble Confusion Matrix" class="mx-auto rounded-lg shadow-md max-w-full md:max-w-2xl w-full h-auto" onerror="this.parentElement.innerHTML = '<div class=\'image-placeholder w-full h-64 md:h-96\'>Ensemble Confusion Matrix Image Not Found (assets/images/ensemble_confusion_matrix.png)</div>';">
+                </div>
+            </div>
+            
+            <div id="comparison-content" class="tab-content">
+                <h3 class="text-2xl font-semibold text-sky-700 mb-4">Model Comparison (10 Epochs Fine-tuning)</h3>
+                <div id="comparison-table-container" class="overflow-x-auto">
+                    <table class="min-w-full bg-white border border-slate-300 shadow-md rounded-lg">
+                        <thead class="bg-slate-200">
+                            <tr>
+                                <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">Metric</th>
+                                <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">EfficientNetV2B0</th>
+                                <th class="py-3 px-4 border-b text-left text-sm font-semibold text-slate-700">ResNet50</th>
+                            </tr>
+                        </thead>
+                        <tbody id="comparison-table-body" class="text-slate-600">
+                            </tbody>
+                    </table>
+                </div>
+                <div class="mt-4 p-4 bg-sky-50 border border-sky-200 rounded-md">
+                  <h4 class="text-lg font-semibold text-sky-700">Note on EfficientNetV2B0 Performance:</h4>
+                  <p class="text-slate-600 text-sm">The EfficientNetV2B0 results presented here are from a 10-epoch fine-tuning run for direct comparison with the 10-epoch ResNet50 run. In a previous, more extensive 50-epoch fine-tuning experiment (results not shown on this page but available from project logs), EfficientNetV2B0 achieved a validation accuracy of approximately 89.9% and a macro F1-score of 0.84, indicating its strong potential with sufficient training.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="challenges" class="mb-16 p-6 bg-white rounded-xl shadow-xl">
+            <h2 class="text-3xl font-semibold text-slate-800 mb-6 border-b-2 border-sky-600 pb-2">Challenges Faced & Solutions</h2>
+            <p class="text-lg leading-relaxed mb-6">This project involved a significant amount of iterative problem-solving. Below are some of the key challenges encountered and the steps taken to address them, reflecting the real-world nature of applied machine learning research.</p>
+            <div class="space-y-6">
+                <div class="bg-slate-50 p-5 rounded-lg shadow challenge-card border border-slate-200">
+                    <h3 class="text-xl font-semibold text-sky-700 mb-2">1. Model & Framework Transition</h3>
+                    <p class="mb-2 text-sm"><strong class="text-slate-600">Issue:</strong> Initial project work was based on PyTorch. A decision was made to transition to TensorFlow to leverage specific model versions (like EfficientNetV2) and explore different API features.</p>
+                    <button class="details-toggle bg-sky-500 text-white px-3 py-1.5 rounded-md hover:bg-sky-600 transition duration-150 text-xs font-medium">Show Solution <span class="arrow">▶</span></button>
+                    <div class="details-content mt-3 text-slate-600 text-sm leading-relaxed">
+                        <p><strong class="text-slate-700">Solution:</strong> The entire data loading pipeline, model definitions, training loops, and evaluation scripts were re-implemented using TensorFlow and its Keras API. This involved adapting to TensorFlow's `tf.data` for efficient input pipelines and Keras's functional and sequential APIs for model building.</p>
+                    </div>
+                </div>
+                 <div class="bg-slate-50 p-5 rounded-lg shadow challenge-card border border-slate-200">
+                    <h3 class="text-xl font-semibold text-sky-700 mb-2">2. NaN Loss with Multi-GPU (T4x2) & Mixed Precision</h3>
+                    <p class="mb-2 text-sm"><strong class="text-slate-600">Issue:</strong> Attempts to accelerate training using `MirroredStrategy` on dual T4 GPUs with `mixed_float16` precision led to persistent NaN (Not a Number) loss values, halting the learning process.</p>
+                    <button class="details-toggle bg-sky-500 text-white px-3 py-1.5 rounded-md hover:bg-sky-600 transition duration-150 text-xs font-medium">Show Investigation & Solutions <span class="arrow">▶</span></button>
+                    <div class="details-content mt-3 text-slate-600 text-sm leading-relaxed">
+                        <p class="font-semibold text-slate-700 mb-1">Investigation & Solutions:</p>
+                        <ol class="list-decimal list-inside space-y-1">
+                            <li><strong>Learning Rate Reduction:</strong> Progressively decreased the learning rate (e.g., from `1e-3` down to `1e-5`), but NaN issues persisted.</li>
+                            <li><strong>Gradient Clipping:</strong> Implemented `clipnorm=1.0` in the Adam optimizer to prevent exploding gradients, but this alone was insufficient.</li>
+                            <li><strong>Input Data Verification:</strong> Thoroughly checked the preprocessed data batches to ensure no NaNs or infinite values were being fed to the model; the data was confirmed to be clean.</li>
+                            <li><strong>Mixed Precision Disablement:</strong> Temporarily switched to full `float32` precision. While this is a common step, NaN issues were still encountered with the T4x2 setup.</li>
+                        </ol>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-5 rounded-lg shadow challenge-card border border-slate-200">
+                    <h3 class="text-xl font-semibold text-sky-700 mb-2">3. `CollectiveReduceV2` Error with `MirroredStrategy`</h3>
+                    <p class="mb-2 text-sm"><strong class="text-slate-600">Issue:</strong> While debugging the T4x2 setup, an `InvalidArgumentError` related to `CollectiveReduceV2` (indicating a shape mismatch in tensors across GPUs) emerged, preventing distributed training.</p>
+                    <button class="details-toggle bg-sky-500 text-white px-3 py-1.5 rounded-md hover:bg-sky-600 transition duration-150 text-xs font-medium">Show Solution <span class="arrow">▶</span></button>
+                    <div class="details-content mt-3 text-slate-600 text-sm leading-relaxed">
+                        <p><strong class="text-slate-700">Solution:</strong> A **Kernel Restart** in the Kaggle environment was performed. This cleared any stale TensorFlow states and resolved the GPU synchronization problem, allowing `MirroredStrategy` to initialize correctly. This underscored the importance of ensuring a clean runtime environment when modifying distributed training configurations.</p>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-5 rounded-lg shadow challenge-card border border-slate-200">
+                    <h3 class="text-xl font-semibold text-sky-700 mb-2">4. Strategic Shift to Single GPU for Stability</h3>
+                    <p class="mb-2 text-sm"><strong class="text-slate-600">Issue:</strong> Despite resolving the `CollectiveReduceV2` error, achieving consistent, NaN-free training on the T4x2 setup with mixed precision remained challenging in the early phases. </p>
+                    <button class="details-toggle bg-sky-500 text-white px-3 py-1.5 rounded-md hover:bg-sky-600 transition duration-150 text-xs font-medium">Show Solution <span class="arrow">▶</span></button>
+                    <div class="details-content mt-3 text-slate-600 text-sm leading-relaxed">
+                        <p><strong class="text-slate-700">Solution (Strategic Simplification):</strong> To isolate variables and establish a stable training baseline, we **switched to a single NVIDIA P100 GPU and disabled mixed precision (using full `float32`)**. This simplification immediately resolved the persistent NaN loss issues and allowed us to focus on model architecture and hyperparameter tuning without the added complexities of distributed or mixed-precision training.</p>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-5 rounded-lg shadow challenge-card border border-slate-200">
+                    <h3 class="text-xl font-semibold text-sky-700 mb-2">5. Initial Poor Performance & Fine-Tuning</h3>
+                    <p class="mb-2 text-sm"><strong class="text-slate-600">Issue:</strong> When first training the models with the base layers frozen (training only the custom classification head), the models achieved numerical stability but showed very poor validation performance (low accuracy, near-zero F1, precision, and recall).</p>
+                    <button class="details-toggle bg-sky-500 text-white px-3 py-1.5 rounded-md hover:bg-sky-600 transition duration-150 text-xs font-medium">Show Solution <span class="arrow">▶</span></button>
+                    <div class="details-content mt-3 text-slate-600 text-sm leading-relaxed">
+                        <p><strong class="text-slate-700">Solution:</strong> Implemented a **fine-tuning strategy**. This involved unfreezing all layers of the pre-trained base models (EfficientNetV2B0 and ResNet50) and continuing training with a very low learning rate (e.g., `1e-5`). This allowed the powerful pre-trained features to adapt to the nuances of our specific waste dataset, leading to a dramatic improvement in performance metrics.</p>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-5 rounded-lg shadow challenge-card border border-slate-200">
+                    <h3 class="text-xl font-semibold text-sky-700 mb-2">6. Misleading Validation Metrics & Data Splitting</h3>
+                    <p class="mb-2 text-sm"><strong class="text-slate-600">Issue:</strong> An earlier successful fine-tuning run showed high validation accuracy. However, a detailed classification report revealed that the validation set (created using Keras's default `validation_split` on `image_dataset_from_directory`) was not representative, with zero samples for many of the 30 classes.</p>
+                    <button class="details-toggle bg-sky-500 text-white px-3 py-1.5 rounded-md hover:bg-sky-600 transition duration-150 text-xs font-medium">Show Solution <span class="arrow">▶</span></button>
+                    <div class="details-content mt-3 text-slate-600 text-sm leading-relaxed">
+                        <p><strong class="text-slate-700">Solution:</strong> Re-implemented the data loading pipeline (Unified Part 1) to **manually perform a stratified split** of all image file paths using `sklearn.model_selection.train_test_split(stratify=labels)`. New `tf.data.Dataset` objects were then created from these explicitly defined training and validation file lists. This ensured that the validation set accurately reflected the class distribution of the overall dataset, providing a reliable basis for model evaluation.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="conclusion" class="mb-16 p-6 bg-white rounded-xl shadow-xl">
+            <h2 class="text-3xl font-semibold text-slate-800 mb-6 border-b-2 border-sky-600 pb-2">Conclusion & Future Work</h2>
+            <div class="text-lg leading-relaxed space-y-4">
+                <p><strong class="text-slate-700">Key Findings:</strong> This project successfully demonstrated the application of deep learning for classifying a diverse 30-class waste dataset. After systematic troubleshooting and methodological refinements, both EfficientNetV2B0 and ResNet50 models were effectively fine-tuned. In 10-epoch fine-tuning runs on a stratified validation set, ResNet50 achieved a validation accuracy of ~83.6% and a macro F1-score of ~0.84, outperforming EfficientNetV2B0 (which achieved ~61.1% accuracy and ~0.61 macro F1 in its 10-epoch run). An ensemble of these 10-epoch models yielded an accuracy of ~83%.</p>
+                <p class="italic text-slate-500">It's noteworthy that in a previous, more extensive 50-epoch fine-tuning experiment, EfficientNetV2B0 demonstrated higher performance (approx. 89.9% accuracy, 0.84 macro F1), indicating its strong potential with sufficient training budget.</p>
+                <p><strong class="text-slate-700">Significance:</strong> The results underscore the potential of fine-tuned CNNs for developing accurate automated waste sorting systems, contributing to more efficient recycling processes and environmental sustainability.</p>
+                <div>
+                    <h4 class="text-xl font-semibold text-sky-700 mb-2">Future Work:</h4>
+                    <ul class="list-disc list-inside space-y-2 text-slate-600">
+                        <li>Conduct more extensive training (e.g., 50+ epochs) for ResNet50 to ensure its peak performance is reached and for a more direct comparison with the best EfficientNetV2B0 results.</li>
+                        <li>Implement and evaluate an ensemble using the *best performing versions* of both EfficientNetV2B0 and ResNet50.</li>
+                        <li>Investigate per-class errors further and explore techniques to improve performance on challenging classes (e.g., targeted data augmentation, class weighting, or using specialized architectures for fine-grained differences).</li>
+                        <li>Explore the feasibility of deploying the trained models on edge devices for real-time classification.</li>
+                        <li>Experiment with newer architectures, such as Vision Transformers (ViTs) or hybrid CNN-Transformer models.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="text-center py-10 bg-slate-800 text-slate-300 mt-12">
+        <p>&copy; 2024 WasteNet Project - Md. Sameer Sakib & Abrar Ahsan Purno - BRAC University</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const mobileMenuButton = document.getElementById('mobile-menu-button');
+            const mobileMenu = document.getElementById('mobile-menu');
+            if (mobileMenuButton && mobileMenu) {
+                mobileMenuButton.addEventListener('click', function() {
+                    mobileMenu.classList.toggle('hidden');
+                });
+            }
+
+            const detailToggles = document.querySelectorAll('.details-toggle');
+            detailToggles.forEach(button => {
+                button.addEventListener('click', function () {
+                    const content = this.nextElementSibling;
+                    const arrow = this.querySelector('.arrow');
+                    content.classList.toggle('open');
+                    if (content.classList.contains('open')) {
+                        this.innerHTML = 'Hide Details <span class="arrow">▼</span>';
+                    } else {
+                        this.innerHTML = 'Show ' + (this.textContent.includes("Solution") ? "Solution" : "Investigation & Solutions") + ' <span class="arrow">▶</span>';
+                    }
+                });
+            });
+
+            const sections = document.querySelectorAll('main > section[id]');
+            const navLinks = document.querySelectorAll('.nav-link');
+            function changeNav() {
+                let index = sections.length;
+                while(--index && window.scrollY + 80 < sections[index].offsetTop) {} 
+                navLinks.forEach((link) => link.classList.remove('active'));
+                if (sections[index] && sections[index].id) {
+                    const activeLinkQuery = `.nav-link[href="#${sections[index].id}"]`;
+                    document.querySelectorAll(activeLinkQuery).forEach(link => link.classList.add('active'));
+                } else if (window.scrollY < (sections[0] ? sections[0].offsetTop : 200) ) {
+                     document.querySelectorAll('.nav-link[href="#intro"]').forEach(link => link.classList.add('active'));
+                }
+            }
+            changeNav();
+            window.addEventListener('scroll', changeNav);
+            
+            mobileMenu.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', () => {
+                    mobileMenu.classList.add('hidden');
+                });
+            });
+
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    this.classList.add('active');
+                    const targetTab = this.dataset.tab;
+                    tabContents.forEach(content => {
+                        if (content.id === targetTab + '-content') {
+                            content.classList.add('active');
+                        } else {
+                            content.classList.remove('active');
+                        }
+                    });
+                });
+            });
+
+            const effnetHistoryData = {
+                epochs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                accuracy: [0.0424, 0.1284, 0.2163, 0.3061, 0.3636, 0.4109, 0.4569, 0.4927, 0.5242, 0.5605],
+                val_accuracy: [0.1237, 0.2437, 0.3373, 0.4003, 0.4513, 0.5043, 0.5330, 0.5720, 0.5827, 0.6110],
+                loss: [4.4744, 3.5921, 3.0911, 2.6711, 2.4023, 2.1612, 1.9447, 1.7862, 1.6655, 1.5247],
+                val_loss: [3.3274, 2.8509, 2.4339, 2.1368, 1.9298, 1.7295, 1.6266, 1.4597, 1.4291, 1.3041]
+            };
+
+            const resnetHistoryData = {
+                epochs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                accuracy: [0.1429, 0.5816, 0.7191, 0.7715, 0.8235, 0.8519, 0.8682, 0.8930, 0.9048, 0.9096],
+                val_accuracy: [0.5987, 0.7167, 0.7617, 0.7913, 0.8113, 0.8263, 0.8363, 0.8360, 0.8390, 0.8480],
+                loss: [3.6540, 1.4723, 0.9529, 0.7197, 0.5764, 0.4772, 0.4085, 0.3343, 0.2924, 0.2665],
+                val_loss: [1.4421, 0.9632, 0.7848, 0.6837, 0.6317, 0.5953, 0.5808, 0.5607, 0.5703, 0.5707]
+            };
+
+            function createChart(canvasId, historyData, modelName) {
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                let datasets;
+                let yLabel;
+                let title;
+                let chartType = 'line';
+
+                if (canvasId.includes('AccChart')) {
+                    title = `${modelName} Accuracy`;
+                    yLabel = 'Accuracy';
+                    datasets = [
+                        {
+                            label: `Training Accuracy (${modelName})`,
+                            data: historyData.accuracy,
+                            borderColor: 'rgb(59, 130, 246)', 
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.1,
+                            borderWidth: 1.5,
+                            pointRadius: 2,
+                            pointBackgroundColor: 'rgb(59, 130, 246)',
+                            fill: true
+                        },
+                        {
+                            label: `Validation Accuracy (${modelName})`,
+                            data: historyData.val_accuracy,
+                            borderColor: 'rgb(34, 197, 94)', 
+                            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                            tension: 0.1,
+                            borderWidth: 1.5,
+                            pointRadius: 2,
+                            pointBackgroundColor: 'rgb(34, 197, 94)',
+                            fill: true
+                        }
+                    ];
+                } else { // Loss Chart
+                    title = `${modelName} Loss`;
+                    yLabel = 'Loss';
+                     datasets = [
+                        {
+                            label: `Training Loss (${modelName})`,
+                            data: historyData.loss,
+                            borderColor: 'rgb(239, 68, 68)', 
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.1,
+                            borderWidth: 1.5,
+                            pointRadius: 2,
+                            pointBackgroundColor: 'rgb(239, 68, 68)',
+                            fill: true
+                        },
+                        {
+                            label: `Validation Loss (${modelName})`,
+                            data: historyData.val_loss,
+                            borderColor: 'rgb(249, 115, 22)', 
+                            backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                            tension: 0.1,
+                            borderWidth: 1.5,
+                            pointRadius: 2,
+                            pointBackgroundColor: 'rgb(249, 115, 22)',
+                            fill: true
+                        }
+                    ];
+                }
+                
+                new Chart(ctx, {
+                    type: chartType,
+                    data: {
+                        labels: historyData.epochs.map(e => `Ep ${e}`),
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        plugins: {
+                            title: { display: true, text: title, font: { size: 16, weight: '600' }, color: '#1e293b', padding: { top:10, bottom:10 } },
+                            legend: { position: 'bottom', labels: { color: '#475569', usePointStyle: true, boxWidth: 8, padding: 20 } },
+                             tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                bodySpacing: 5,
+                                titleSpacing: 6,
+                                titleFont: { weight: 'bold' },
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) { label += ': '; }
+                                        if (context.parsed.y !== null) {
+                                            label += context.parsed.y.toFixed(4);
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { 
+                                title: { display: true, text: 'Epoch', color: '#475569', font: {weight: '500'} }, 
+                                ticks: { color: '#64748b', font: {size: 10}},
+                                grid: { display: false }
+                            },
+                            y: { 
+                                title: { display: true, text: yLabel, color: '#475569', font: {weight: '500'} }, 
+                                ticks: { color: '#64748b', font: {size: 10}},
+                                grid: { color: '#e2e8f0' } // slate-200
+                            }
+                        }
+                    }
+                });
+            }
+
+            createChart('effnetAccChart', effnetHistoryData, 'EfficientNetV2B0');
+            createChart('effnetLossChart', effnetHistoryData, 'EfficientNetV2B0');
+            createChart('resnetAccChart', resnetHistoryData, 'ResNet50');
+            createChart('resnetLossChart', resnetHistoryData, 'ResNet50');
+
+            const comparisonData = [
+                { Metric: "Loss (from evaluate)", EfficientNetV2B0: "1.3041", ResNet50: "0.5607" },
+                { Metric: "Accuracy (from evaluate)", EfficientNetV2B0: "0.6110", ResNet50: "0.8360" },
+                { Metric: "Sklearn Macro Precision", EfficientNetV2B0: "0.6311", ResNet50: "0.8367" },
+                { Metric: "Sklearn Macro Recall", EfficientNetV2B0: "0.6110", ResNet50: "0.8360" },
+                { Metric: "Sklearn Macro F1-Score", EfficientNetV2B0: "0.6104", ResNet50: "0.8356" },
+                { Metric: "Sklearn Weighted F1-Score", EfficientNetV2B0: "0.6104", ResNet50: "0.8356" },
+                { Metric: "Sklearn Accuracy", EfficientNetV2B0: "0.6110", ResNet50: "0.8360" }
+            ];
+            const tableBody = document.getElementById('comparison-table-body');
+            comparisonData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.classList.add('border-b', 'border-slate-200', 'hover:bg-slate-50');
+                tr.innerHTML = `
+                    <td class="py-3 px-4 text-sm font-medium text-slate-800 whitespace-nowrap">${row.Metric}</td>
+                    <td class="py-3 px-4 text-sm text-center">${row.EfficientNetV2B0}</td>
+                    <td class="py-3 px-4 text-sm text-center">${row.ResNet50}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        });
+    </script>
+</body>
+</html>
